@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router";
+import { Link, NavLink, useNavigate } from "react-router";
 
 const navigationLinkClass = ({ isActive }) =>
   `rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
@@ -8,8 +8,20 @@ const navigationLinkClass = ({ isActive }) =>
   }`;
 
 export default function SiteHeader() {
+  const navigate = useNavigate();
+
   function handleSearchSubmit(event) {
     event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const query = formData.get("q").toString().trim();
+
+    if (!query) {
+      navigate("/products");
+      return;
+    }
+
+    navigate(`/products?q=${encodeURIComponent(query)}`);
   }
 
   return (
