@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import BackendStatus from "../components/BackendStatus.jsx";
 
 export default function HomePage() {
   return (
@@ -114,6 +115,7 @@ export default function HomePage() {
           can be tested end to end.
         </p>
       </section>
+      <BackendStatus />
     </main>
   );
 }
