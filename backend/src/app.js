@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import healthRouter from "./routes/health.routes.js";
-
+import productsRouter from "./routes/products.routes.js";
 const app = express();
 
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -16,6 +16,7 @@ app.use(
 app.use(express.json());
 
 app.use("/api/health", healthRouter);
+app.use("/api/products", productsRouter);
 
 app.use((req, res) => {
   res.status(404).json({
