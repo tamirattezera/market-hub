@@ -5,10 +5,11 @@ import pool from "./database/pool.js";
 import { createHealthRouter } from "./routes/health.routes.js";
 import { createProductsRouter } from "./routes/products.routes.js";
 import { createCategoriesRouter } from "./routes/categories.routes.js";
+import { getServerConfig } from "./config.js";
 
 export function createApp({ dbPool = pool } = {}) {
   const app = express();
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const { frontendUrl } = getServerConfig();
 
   app.use(
     cors({

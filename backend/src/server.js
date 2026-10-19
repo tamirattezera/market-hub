@@ -1,8 +1,9 @@
 import "dotenv/config";
 import app from "./app.js";
+import { getServerConfig } from "./config.js";
 
-const PORT = Number(process.env.PORT) || 5000;
+const { port } = getServerConfig();
 
-app.listen(PORT, () => {
-  console.log(`Market Hub API listening on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Market Hub API listening on port ${port}`);
 });
