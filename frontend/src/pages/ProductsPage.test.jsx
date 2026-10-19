@@ -8,9 +8,9 @@ vi.mock("../services/api.js", () => ({
   apiRequest: vi.fn(),
 }));
 
-function renderProductsPage() {
+function renderProductsPage(initialEntry = "/products") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <ProductsPage />
     </MemoryRouter>,
   );
@@ -101,5 +101,47 @@ describe("ProductsPage", () => {
     expect(screen.getByText("$29.99")).toBeInTheDocument();
     expect(screen.getByText("25 in stock")).toBeInTheDocument();
     expect(screen.getByText("1 product")).toBeInTheDocument();
+  });
+
+  it("sends the URL search query to the products API", async () => {
+    apiRequest.mockResolvedValueOnce({
+      success: true,
+      data: [
+        {
+          id: 1,
+          name: "Wireless Mouse",
+          description: "Ergonomic wireless mouse.",
+          price: "29.99",
+          stock_quantity: 25,
+        },
+      ],
+    });
+
+    renderProductsPage("/products?q=wireless%20mouse");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Wireless Mouse",
+      }),
+    ).toBeInTheDocument();
+
+    expect(apiRequest).toHaveBeenCalledWith("/api/products?q=wireless%20mouse");
+  });
+
+  it("shows the empty state when a search has no matches", async () => {
+    apiRequest.mockResolvedValueOnce({
+      success: true,
+      data: [],
+    });
+
+    renderProductsPage("/products?q=not-found");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /no products yet/i,
+      }),
+    ).toBeInTheDocument();
+
+    expect(apiRequest).toHaveBeenCalledWith("/api/products?q=not-found");
   });
 });

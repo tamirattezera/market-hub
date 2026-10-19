@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { apiRequest } from "../services/api.js";
 
 function formatPrice(price) {
@@ -55,8 +55,13 @@ export default function ProductsPage() {
   const [status, setStatus] = useState("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const fetchProducts = useCallback(async () => {
-    const response = await apiRequest("/api/products");
+  const [searchParams] = useSearchParams();
+  const searchQuery = (searchParams.get("q") ?? "").trim();
+
+  const fetchProducts = useCallback(async (query) => {
+    const queryString = query ? `?q=${encodeURIComponent(query)}` : "";
+
+    const response = await apiRequest(`/api/products${queryString}`);
 
     if (
       !response ||
@@ -73,7 +78,7 @@ export default function ProductsPage() {
     setStatus("loading");
     setErrorMessage("");
 
-    fetchProducts()
+    fetchProducts(searchQuery)
       .then((data) => {
         setProducts(data);
         setStatus("success");
@@ -86,15 +91,17 @@ export default function ProductsPage() {
         );
         setStatus("error");
       });
-  }, [fetchProducts]);
+  }, [fetchProducts, searchQuery]);
+
 
   useEffect(() => {
     let active = true;
 
-    fetchProducts()
+    fetchProducts(searchQuery)
       .then((data) => {
         if (active) {
           setProducts(data);
+          setErrorMessage("");
           setStatus("success");
         }
       })
@@ -112,7 +119,9 @@ export default function ProductsPage() {
     return () => {
       active = false;
     };
-  }, [fetchProducts]);
+  }, [fetchProducts, searchQuery]);
+
+
 
   return (
     <main className="mx-auto min-h-[60vh] max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
