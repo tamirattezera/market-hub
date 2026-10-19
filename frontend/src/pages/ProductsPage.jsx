@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { apiRequest } from "../services/api.js";
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "price-asc", label: "Price: low to high" },
+  { value: "price-desc", label: "Price: high to low" },
+];
 
 function formatPrice(price) {
   const amount = Number(price);
@@ -26,6 +32,12 @@ function ProductCard({ product }) {
       </div>
 
       <div className="mt-5 flex flex-1 flex-col">
+        {product.category_name && (
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-800">
+            {product.category_name}
+          </p>
+        )}
+
         <h2 className="text-lg font-bold text-slate-950">{product.name}</h2>
 
         <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">
@@ -54,14 +66,31 @@ export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [status, setStatus] = useState("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [categoryError, setCategoryError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const searchQuery = (searchParams.get("q") ?? "").trim();
+  const categorySlug = searchParams.get("category") ?? "";
+  const requestedSort = searchParams.get("sort") ?? "newest";
 
-  const fetchProducts = useCallback(async (query) => {
-    const queryString = query ? `?q=${encodeURIComponent(query)}` : "";
+  const sortOrder = SORT_OPTIONS.some(
+    (option) => option.value === requestedSort,
+  )
+    ? requestedSort
+    : "newest";
 
-    const response = await apiRequest(`/api/products${queryString}`);
+  const fetchProducts = useCallback(async (query, category) => {
+    const params = new URLSearchParams();
+
+    if (query) params.set("q", query);
+    if (category) params.set("category", category);
+
+    const queryString = params.toString();
+    const path = `/api/products${queryString ? `?${queryString}` : ""}`;
+    const response = await apiRequest(path);
 
     if (
       !response ||
@@ -74,30 +103,45 @@ export default function ProductsPage() {
     return response.data;
   }, []);
 
-  const loadProducts = useCallback(() => {
-    setStatus("loading");
-    setErrorMessage("");
+  useEffect(() => {
+    let active = true;
 
-    fetchProducts(searchQuery)
-      .then((data) => {
-        setProducts(data);
-        setStatus("success");
+    apiRequest("/api/categories")
+      .then((response) => {
+        if (
+          !response ||
+          response.success !== true ||
+          !Array.isArray(response.data)
+        ) {
+          throw new Error("The server returned an invalid category list.");
+        }
+
+        if (active) {
+          setCategories(response.data);
+          setCategoryError("");
+        }
       })
       .catch((error) => {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while loading products.",
-        );
-        setStatus("error");
+        if (active) {
+          setCategoryError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load categories.",
+          );
+        }
       });
-  }, [fetchProducts, searchQuery]);
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
 
 
   useEffect(() => {
     let active = true;
 
-    fetchProducts(searchQuery)
+    fetchProducts(searchQuery, categorySlug)
       .then((data) => {
         if (active) {
           setProducts(data);
@@ -119,9 +163,45 @@ export default function ProductsPage() {
     return () => {
       active = false;
     };
-  }, [fetchProducts, searchQuery]);
+  }, [fetchProducts, searchQuery, categorySlug, retryCount]);
 
+  const sortedProducts = useMemo(() => {
+    const result = [...products];
 
+    if (sortOrder === "price-asc") {
+      result.sort((a, b) => Number(a.price) - Number(b.price));
+    } else if (sortOrder === "price-desc") {
+      result.sort((a, b) => Number(b.price) - Number(a.price));
+    } else {
+      result.sort((a, b) => {
+        const dateDifference =
+          new Date(b.created_at ?? 0).getTime() -
+          new Date(a.created_at ?? 0).getTime();
+
+        return dateDifference || Number(b.id) - Number(a.id);
+      });
+    }
+
+    return result;
+  }, [products, sortOrder]);
+
+  function updateFilter(key, value) {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (value) {
+      nextParams.set(key, value);
+    } else {
+      nextParams.delete(key);
+    }
+
+    setSearchParams(nextParams);
+  }
+
+  function handleRetry() {
+    setStatus("loading");
+    setErrorMessage("");
+    setRetryCount((count) => count + 1);
+  }
 
   return (
     <main className="mx-auto min-h-[60vh] max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
@@ -151,9 +231,75 @@ export default function ProductsPage() {
 
           {status === "success" && (
             <p className="text-sm text-slate-600">
-              {products.length} {products.length === 1 ? "product" : "products"}
+              {sortedProducts.length}{" "}
+              {sortedProducts.length === 1 ? "product" : "products"}
             </p>
           )}
+        </div>
+
+        <div className="mb-8 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label
+              htmlFor="category-filter"
+              className="mb-2 block text-sm font-semibold text-slate-800"
+            >
+              Category
+            </label>
+
+            <select
+              id="category-filter"
+              value={categorySlug}
+              onChange={(event) =>
+                updateFilter("category", event.target.value)
+              }
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+            >
+              <option value="">All categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.slug}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+
+            {categoryError && (
+              <p className="mt-2 text-sm text-rose-700" role="status">
+                Categories unavailable: {categoryError}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="sort-products"
+              className="mb-2 block text-sm font-semibold text-slate-800"
+            >
+              Sort by
+            </label>
+
+            <select
+              id="sort-products"
+              value={sortOrder}
+              onChange={(event) => updateFilter("sort", event.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-4 py-2.5 font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+            >
+              Clear filters
+            </button>
+          </div>
         </div>
 
         {status === "loading" && (
@@ -177,7 +323,7 @@ export default function ProductsPage() {
 
             <button
               type="button"
-              onClick={loadProducts}
+              onClick={handleRetry}
               className="mt-4 rounded-lg bg-rose-800 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-rose-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-800"
             >
               Try again
@@ -185,21 +331,21 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {status === "success" && products.length === 0 && (
+        {status === "success" && sortedProducts.length === 0 && (
           <div className="rounded-xl border border-slate-200 bg-white px-6 py-14 text-center">
             <h3 className="text-lg font-bold text-slate-950">
-              No products yet
+              No products found
             </h3>
 
             <p className="mt-2 text-slate-600">
-              Products will appear here when they are added to the catalog.
+              Try another search or category, or clear your filters.
             </p>
           </div>
         )}
 
-        {status === "success" && products.length > 0 && (
+        {status === "success" && sortedProducts.length > 0 && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {products.map((product) => (
+            {sortedProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
