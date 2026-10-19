@@ -186,3 +186,114 @@ test("categories endpoint returns a safe error when the database fails", async (
     false,
   );
 });
+
+test("products endpoint rejects repeated category parameters", async () => {
+  let databaseCalled = false;
+
+  const fakePool = {
+    async query() {
+      databaseCalled = true;
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get(
+    "/api/products?category=electronics&category=clothing",
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "Category must be a single string",
+  });
+  assert.equal(databaseCalled, false);
+});
+
+test("products endpoint rejects search terms longer than 100 characters", async () => {
+  let databaseCalled = false;
+
+  const fakePool = {
+    async query() {
+      databaseCalled = true;
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const longQuery = "a".repeat(101);
+  const response = await request(testApp).get(`/api/products?q=${longQuery}`);
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "Search query must not exceed 100 characters",
+  });
+  assert.equal(databaseCalled, false);
+});
+
+test("products endpoint rejects invalid category slugs", async () => {
+  let databaseCalled = false;
+
+  const fakePool = {
+    async query() {
+      databaseCalled = true;
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get(
+    "/api/products?category=Electronics%20%26%20More",
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "Category must be a valid category slug",
+  });
+  assert.equal(databaseCalled, false);
+});
+
+test("products endpoint accepts a search term of exactly 100 characters", async () => {
+  const searchTerm = "a".repeat(100);
+  const expectedPattern = `%${searchTerm}%`;
+
+  const fakePool = {
+    async query(sql, params) {
+      assert.match(sql, /p\.name LIKE \?/);
+      assert.deepEqual(params, [expectedPattern, expectedPattern]);
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get(`/api/products?q=${searchTerm}`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    data: [],
+  });
+});
+
+test("products endpoint accepts a valid category slug", async () => {
+  const fakePool = {
+    async query(sql, params) {
+      assert.match(sql, /c\.slug = \?/);
+      assert.deepEqual(params, ["home-kitchen"]);
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get(
+    "/api/products?category=home-kitchen",
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    data: [],
+  });
+});
