@@ -1,3 +1,4 @@
+import { useCart } from "../context/useCart.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { apiRequest } from "../services/api.js";
@@ -22,14 +23,29 @@ function formatPrice(price) {
 }
 
 function ProductCard({ product }) {
+  const { addToCart } = useCart();
+  const [addedMessage, setAddedMessage] = useState("");
+
+  const inStock = Number(product.stock_quantity) > 0;
+
+  function handleAddToCart() {
+    if (!inStock) {
+      return;
+    }
+
+    addToCart(product);
+    setAddedMessage(`${product.name} added to your cart.`);
+  }
+
   return (
     <article className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div
-        aria-hidden="true"
-        className="flex aspect-[4/3] items-center justify-center rounded-lg bg-slate-100 text-4xl text-slate-400"
+      <Link
+        to={`/products/${product.id}`}
+        aria-label={`View ${product.name}`}
+        className="flex aspect-[4/3] items-center justify-center rounded-lg bg-slate-100 text-4xl text-slate-400 focus-visible:outline-2 focus-visible:outline-sky-700"
       >
         ◈
-      </div>
+      </Link>
 
       <div className="mt-5 flex flex-1 flex-col">
         {product.category_name && (
@@ -57,13 +73,26 @@ function ProductCard({ product }) {
 
         <p
           className={`mt-2 text-sm font-medium ${
-            product.stock_quantity > 0 ? "text-emerald-700" : "text-rose-700"
+            inStock ? "text-emerald-700" : "text-rose-700"
           }`}
         >
-          {product.stock_quantity > 0
-            ? `${product.stock_quantity} in stock`
-            : "Out of stock"}
+          {inStock ? `${product.stock_quantity} in stock` : "Out of stock"}
         </p>
+
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={!inStock}
+          className="mt-4 w-full rounded-lg bg-amber-400 px-4 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+        >
+          {inStock ? "Add to Cart" : "Out of Stock"}
+        </button>
+
+        {addedMessage && (
+          <p role="status" className="mt-2 text-sm text-green-700">
+            {addedMessage}
+          </p>
+        )}
       </div>
     </article>
   );
@@ -142,8 +171,6 @@ export default function ProductsPage() {
       active = false;
     };
   }, []);
-
-
 
   useEffect(() => {
     let active = true;
@@ -256,9 +283,7 @@ export default function ProductsPage() {
             <select
               id="category-filter"
               value={categorySlug}
-              onChange={(event) =>
-                updateFilter("category", event.target.value)
-              }
+              onChange={(event) => updateFilter("category", event.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
             >
               <option value="">All categories</option>

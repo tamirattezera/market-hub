@@ -1,4 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router";
+import { useCart } from "../context/useCart.js";
 
 const navigationLinkClass = ({ isActive }) =>
   `rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
@@ -8,6 +9,7 @@ const navigationLinkClass = ({ isActive }) =>
   }`;
 
 export default function SiteHeader() {
+  const { itemCount } = useCart();
   const navigate = useNavigate();
 
   function handleSearchSubmit(event) {
@@ -36,13 +38,19 @@ export default function SiteHeader() {
             Market <span className="text-sky-700">Hub</span>
           </Link>
 
-          <div
-            aria-label="Shopping cart"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-500"
+          <Link
+            to="/cart"
+            aria-label={`Shopping cart, ${itemCount} items`}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
           >
             Cart
-            <span className="ml-2 text-xs font-normal">Coming soon</span>
-          </div>
+            <span
+              aria-label="Cart item count"
+              className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-sky-100 px-2 py-1 text-xs font-bold text-sky-900"
+            >
+              {itemCount}
+            </span>
+          </Link>
         </div>
 
         <form

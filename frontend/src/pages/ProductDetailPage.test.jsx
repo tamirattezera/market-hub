@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
+import { CartProvider } from "../context/CartContext.jsx";
 import ProductDetailPage from "./ProductDetailPage.jsx";
 import { apiRequest } from "../services/api.js";
 
@@ -20,9 +21,11 @@ const product = {
 function renderProductPage() {
   return render(
     <MemoryRouter initialEntries={["/products/1"]}>
-      <Routes>
-        <Route path="/products/:id" element={<ProductDetailPage />} />
-      </Routes>
+      <CartProvider>
+        <Routes>
+          <Route path="/products/:id" element={<ProductDetailPage />} />
+        </Routes>
+      </CartProvider>
     </MemoryRouter>,
   );
 }
@@ -64,8 +67,28 @@ describe("ProductDetailPage", () => {
     expect(screen.getByText("$79.99")).toBeInTheDocument();
     expect(screen.getByText("Electronics")).toBeInTheDocument();
     expect(screen.getByText("12 in stock")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to Cart" })).toBeEnabled();
 
     expect(apiRequest).toHaveBeenCalledWith("/api/products/1");
+  });
+
+  it("adds the product to the cart and shows confirmation", async () => {
+    apiRequest.mockResolvedValue({
+      success: true,
+      data: product,
+    });
+
+    renderProductPage();
+
+    await screen.findByRole("heading", {
+      name: "Mechanical Keyboard",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Mechanical Keyboard added to your cart.",
+    );
   });
 
   it("shows an error when the product request fails", async () => {

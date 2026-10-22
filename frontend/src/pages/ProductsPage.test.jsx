@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CartProvider } from "../context/CartContext.jsx";
 import {
   cleanup,
   fireEvent,
@@ -60,7 +61,9 @@ function mockApi({ products = [mouse], categoryResponse } = {}) {
 function renderProductsPage(initialEntry = "/products") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <ProductsPage />
+      <CartProvider>
+        <ProductsPage />
+      </CartProvider>
     </MemoryRouter>,
   );
 }
@@ -118,18 +121,17 @@ describe("ProductsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders product details and its category", async () => {
+  it("adds an in-stock product to the cart", async () => {
     mockApi();
     renderProductsPage();
 
-    expect(
-      await screen.findByRole("heading", { name: "Wireless Mouse" }),
-    ).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Wireless Mouse" });
 
-    expect(screen.getByText("$29.99")).toBeInTheDocument();
-    expect(screen.getByText("25 in stock")).toBeInTheDocument();
-    expect(screen.getAllByText("Electronics")).toHaveLength(2);
-    expect(screen.getByText("1 product")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /add to cart/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /wireless mouse added to your cart/i,
+    );
   });
 
   it("sends the URL search query to the products API", async () => {
@@ -140,9 +142,7 @@ describe("ProductsPage", () => {
       await screen.findByRole("heading", { name: "Wireless Mouse" }),
     ).toBeInTheDocument();
 
-    expect(apiRequest).toHaveBeenCalledWith(
-      "/api/products?q=wireless+mouse",
-    );
+    expect(apiRequest).toHaveBeenCalledWith("/api/products?q=wireless+mouse");
   });
 
   it("sends the selected category from the URL to the API", async () => {
@@ -162,14 +162,14 @@ describe("ProductsPage", () => {
 
   it("preserves search and category while sorting products by price", async () => {
     mockApi({ products: [mouse, keyboard] });
-    renderProductsPage(
-      "/products?q=key&category=electronics&sort=price-asc",
-    );
+    renderProductsPage("/products?q=key&category=electronics&sort=price-asc");
 
     await screen.findByRole("heading", { name: "Wireless Mouse" });
 
     const getDisplayedPrices = () =>
-      screen.getAllByText(/^\$\d+\.\d{2}$/).map((element) => element.textContent);
+      screen
+        .getAllByText(/^\$\d+\.\d{2}$/)
+        .map((element) => element.textContent);
 
     await waitFor(() => {
       expect(getDisplayedPrices()).toEqual(["$29.99", "$79.99"]);

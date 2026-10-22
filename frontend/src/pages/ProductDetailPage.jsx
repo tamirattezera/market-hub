@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { useCart } from "../context/useCart.js";
 import { apiRequest } from "../services/api.js";
 
 function formatPrice(price) {
@@ -17,14 +18,18 @@ function formatPrice(price) {
 
 export default function ProductDetailPage() {
   const { id } = useParams();
+  const { addToCart } = useCart();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [cartMessage, setCartMessage] = useState("");
 
   const fetchProduct = useCallback(async () => {
     setLoading(true);
     setError("");
     setProduct(null);
+    setCartMessage("");
 
     try {
       const response = await apiRequest(`/api/products/${id}`);
@@ -48,6 +53,7 @@ export default function ProductDetailPage() {
       setLoading(true);
       setError("");
       setProduct(null);
+      setCartMessage("");
 
       try {
         const response = await apiRequest(`/api/products/${id}`);
@@ -76,6 +82,15 @@ export default function ProductDetailPage() {
       ignore = true;
     };
   }, [id]);
+
+  function handleAddToCart() {
+    if (!product || Number(product.stock_quantity) < 1) {
+      return;
+    }
+
+    addToCart(product);
+    setCartMessage(`${product.name} added to your cart.`);
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -140,6 +155,26 @@ export default function ProductDetailPage() {
                 ? `${product.stock_quantity} in stock`
                 : "Currently out of stock"}
             </p>
+
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={Number(product.stock_quantity) < 1}
+              className="mt-6 w-full rounded-lg bg-amber-400 px-5 py-3 font-bold text-slate-950 transition-colors hover:bg-amber-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 sm:w-auto"
+            >
+              {Number(product.stock_quantity) > 0
+                ? "Add to Cart"
+                : "Out of Stock"}
+            </button>
+
+            {cartMessage && (
+              <p
+                role="status"
+                className="mt-3 text-sm font-medium text-green-700"
+              >
+                {cartMessage}
+              </p>
+            )}
 
             <p className="mt-6 text-sm text-slate-500">
               Product ID: {product.id}
