@@ -38,7 +38,14 @@ function ProductCard({ product }) {
           </p>
         )}
 
-        <h2 className="text-lg font-bold text-slate-950">{product.name}</h2>
+        <h2 className="text-lg font-bold text-slate-950">
+          <Link
+            to={`/products/${product.id}`}
+            className="rounded-sm hover:text-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+          >
+            {product.name}
+          </Link>
+        </h2>
 
         <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">
           {product.description || "No description available."}
