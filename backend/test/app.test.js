@@ -297,3 +297,96 @@ test("products endpoint accepts a valid category slug", async () => {
     data: [],
   });
 });
+
+test("GET /api/products/:id returns a product by ID", async () => {
+  const expectedProduct = {
+    id: 1,
+    name: "Test Product",
+    description: "A product for testing",
+    price: "29.99",
+    stock_quantity: 10,
+    category_id: 2,
+    category_name: "Electronics",
+    category_slug: "electronics",
+  };
+
+  const fakePool = {
+    async query(sql, params) {
+      assert.match(sql, /WHERE p\.id = \?/);
+      assert.deepEqual(params, [1]);
+
+      return [[expectedProduct], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get("/api/products/1");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    data: expectedProduct,
+  });
+});
+
+test("GET /api/products/:id rejects invalid IDs without querying the database", async () => {
+  const fakePool = {
+    async query() {
+      assert.fail("Database should not be queried for an invalid product ID");
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+
+  for (const id of ["abc", "0", "-1", "1.5", "9007199254740992"]) {
+    const response = await request(testApp).get(`/api/products/${id}`);
+
+    assert.equal(response.status, 400, `Expected 400 for ID: ${id}`);
+    assert.deepEqual(response.body, {
+      success: false,
+      message: "Product ID must be a positive integer",
+    });
+  }
+});
+
+test("GET /api/products/:id returns 404 when the product does not exist", async () => {
+  const fakePool = {
+    async query(sql, params) {
+      assert.match(sql, /WHERE p\.id = \?/);
+      assert.deepEqual(params, [999999]);
+
+      return [[], []];
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get("/api/products/999999");
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "Product not found",
+  });
+});
+
+test("GET /api/products/:id returns a safe error when the database fails", async () => {
+  const fakePool = {
+    async query() {
+      throw new Error("Internal database connection details");
+    },
+  };
+
+  const testApp = createApp({ dbPool: fakePool });
+  const response = await request(testApp).get("/api/products/1");
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "Unable to retrieve product",
+  });
+
+  assert.equal(
+    JSON.stringify(response.body).includes("Internal database connection details"),
+    false,
+  );
+});
